@@ -14,6 +14,7 @@ public static class DbInitializer
     public static async Task InitializeAsync(AppDbContext db, CancellationToken ct = default)
     {
         await db.Database.MigrateAsync(ct);
+        await SyncPostgresIdentitiesAsync(db, ct);
 
         var firstDay = DateTime.UtcNow.Date;
         var endDay = firstDay.AddDays(DaysAhead);
@@ -38,5 +39,17 @@ public static class DbInitializer
 
         db.TimeSlots.AddRange(missing);
         await db.SaveChangesAsync(ct);
+    }
+
+    // ב-PostgreSQL, נתוני Seed עם Id מפורש לא מקדמים את מונה ה-Identity,
+    // ולכן ההוספה הראשונה הייתה מקבלת Id=1 ונכשלת. מיישרים את המונה ל-Id הגבוה הקיים.
+    private static async Task SyncPostgresIdentitiesAsync(AppDbContext db, CancellationToken ct)
+    {
+        if (db.Database.ProviderName != "Npgsql.EntityFrameworkCore.PostgreSQL")
+            return;
+
+        foreach (var table in new[] { "Users", "StudySpots", "Amenities" })
+            await db.Database.ExecuteSqlRawAsync(
+                $"SELECT setval(pg_get_serial_sequence('\"{table}\"', 'Id'), (SELECT COALESCE(MAX(\"Id\"), 1) FROM \"{table}\"))", ct);
     }
 }

@@ -46,11 +46,35 @@ dotnet run --project ReadingSpot.API --launch-profile https
 - Swagger: <https://localhost:7180/swagger> (או <http://localhost:5180/swagger>)
 - בעליית השרת נוצרים אוטומטית חלונות זמן ל-7 הימים הקרובים. הפעולה idempotent, ואפשר להריץ אותה שוב בלי כפילויות.
 
-**כלי EF** (רק ליצירת Migrations חדשים):
+**כלי EF** (רק ליצירת Migrations חדשים): `dotnet tool restore`, ואז הפקודות שבסעיף "העלאה לענן".
+
+## העלאה לענן (Render)
+
+בענן השרת רץ ב-**Docker** (קובץ `Dockerfile` בשורש), ובסיס הנתונים הוא **PostgreSQL** של Render. מקומית ממשיכים לעבוד עם SQL Server. הבחירה נעשית בהגדרה אחת, `Database:Provider`.
+
+**התקנה:** הקובץ `render.yaml` מגדיר את כל שלושת החלקים: בסיס הנתונים, השרת והלקוח. ב-Render בוחרים **New → Blueprint**, בוחרים את ה-repository הזה ולוחצים **Apply**. מפתח ה-JWT נוצר אוטומטית.
+
+- שרת: <https://readingspot-yehudit-api.onrender.com/swagger>
+- לקוח: <https://readingspot-yehudit.onrender.com>
+
+ההגדרות שהקובץ מכניס:
+
+| הגדרה | מקומית | Render (משתני סביבה) |
+|---|---|---|
+| ספק בסיס הנתונים | `SqlServer` (ברירת מחדל) | `Database__Provider=Postgres` |
+| Connection string | User Secrets | `ConnectionStrings__Default=<Internal Database URL>` |
+| מפתח JWT | User Secrets | `Jwt__Key` (נוצר אוטומטית) |
+| כתובת הלקוח (CORS) | `localhost` | `Cors__Origins__0=https://<הלקוח>.onrender.com` |
+
+- לכל ספק יש Migrations נפרדים: SQL Server ב-`Migrations/`, ו-PostgreSQL ב-`Migrations/Postgres/` (דרך `PostgresDbContext`, שיורש מ-`AppDbContext`, כך שהמודל והקונפיגורציה משותפים).
+- ה-Migrations וה-Seed רצים אוטומטית בעליית השרת גם בענן. ב-PostgreSQL, `DbInitializer` גם מיישר את מוני ה-Identity אחרי ה-Seed.
+- Render נותן את כתובת בסיס הנתונים בפורמט `postgresql://...`. `PostgresDbContext.NormalizeConnectionString` ממיר אותה לפורמט של Npgsql.
+
+כשיש שני DbContext, פקודות `dotnet ef` צריכות לציין `--context`:
 
 ```bash
-dotnet tool restore
-dotnet ef migrations add <Name> --project ReadingSpot.Data --startup-project ReadingSpot.Data --output-dir Migrations
+dotnet ef migrations add <Name> --context AppDbContext      --project ReadingSpot.Data --startup-project ReadingSpot.Data --output-dir Migrations
+dotnet ef migrations add <Name> --context PostgresDbContext --project ReadingSpot.Data --startup-project ReadingSpot.Data --output-dir Migrations/Postgres
 ```
 
 ### משתמשי דמו
@@ -113,4 +137,3 @@ dotnet test
 | פענוח זהות המשתמשת | `ClaimsPrincipalExtensions` |
 | רישום DI | `ServiceCollectionExtensions` |
 | נתוני בדיקה | `TestData` |
-"# ReadingSpot" 

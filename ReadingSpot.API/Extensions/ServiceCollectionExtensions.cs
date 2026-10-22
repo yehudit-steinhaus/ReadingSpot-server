@@ -74,7 +74,12 @@ public static class ServiceCollectionExtensions
                 "חסר ConnectionStrings:Default. יש להגדיר אותו עם dotnet user-secrets (ראי README).");
 
         // DbContext רשום כ-Scoped (ברירת המחדל) – מופע אחד לכל בקשה.
-        services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString));
+        // מקומית: SQL Server. בענן (Render): Database:Provider = Postgres.
+        if (string.Equals(config["Database:Provider"], "Postgres", StringComparison.OrdinalIgnoreCase))
+            services.AddDbContext<AppDbContext, PostgresDbContext>(o =>
+                o.UseNpgsql(PostgresDbContext.NormalizeConnectionString(connectionString)));
+        else
+            services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString));
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<ISpotRepository, SpotRepository>();
